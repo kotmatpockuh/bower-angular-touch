@@ -263,7 +263,7 @@ ngTouch.directive('ngClick', ['$parse', '$timeout', '$rootElement',
   // double-tapping, and then fire a click event.
   //
   // This delay sucks and makes mobile apps feel unresponsive.
-  // So we detect touchstart, touchmove, touchcancel and touchend ourselves and determine when
+  // So we detect touchstart, touchcancel and touchend ourselves and determine when
   // the user has tapped on something.
   //
   // What happens when the browser then generates a click event?
@@ -275,7 +275,7 @@ ngTouch.directive('ngClick', ['$parse', '$timeout', '$rootElement',
   // So the sequence for a tap is:
   // - global touchstart: Sets an "allowable region" at the point touched.
   // - element's touchstart: Starts a touch
-  // (- touchmove or touchcancel ends the touch, no click follows)
+  // (- touchcancel ends the touch, no click follows)
   // - element's touchend: Determines if the tap is valid (didn't move too far away, didn't hold
   //   too long) and fires the user's tap handler. The touchend also calls preventGhostClick().
   // - preventGhostClick() removes the allowable region the global touchstart created.
@@ -320,6 +320,9 @@ ngTouch.directive('ngClick', ['$parse', '$timeout', '$rootElement',
       return; // Too old.
     }
 
+    // Get the node name of the target
+    var nodeName = nodeName_(event.target);
+
     var touches = event.touches && event.touches.length ? event.touches : [event];
     var x = touches[0].clientX;
     var y = touches[0].clientY;
@@ -339,7 +342,7 @@ ngTouch.directive('ngClick', ['$parse', '$timeout', '$rootElement',
       lastLabelClickCoordinates = null;
     }
     // remember label click coordinates to prevent click busting of trigger click event on input
-    if (nodeName_(event.target) === 'label') {
+    if (nodeName === 'label') {
       lastLabelClickCoordinates = [x, y];
     }
 
@@ -354,8 +357,14 @@ ngTouch.directive('ngClick', ['$parse', '$timeout', '$rootElement',
     event.stopPropagation();
     event.preventDefault();
 
-    // Blur focused form elements
-    event.target && event.target.blur && event.target.blur();
+    // Check if the target node is not of the type input.
+    // All targets should be blurred except input to prevent the keyboard from
+    // bouncing in and out and sometimes not showing.
+    if (nodeName !== 'input' && nodeName !== 'textarea') {
+      // Blur focused form elements
+      event.target && event.target.blur && event.target.blur();
+    }
+
   }
 
 
@@ -426,16 +435,15 @@ ngTouch.directive('ngClick', ['$parse', '$timeout', '$rootElement',
       touchStartY = e.clientY;
     });
 
-    element.on('touchmove', function(event) {
-      resetState();
-    });
-
     element.on('touchcancel', function(event) {
       resetState();
     });
 
     element.on('touchend', function(event) {
       var diff = Date.now() - startTime;
+
+      // Get the node name of the tapElement
+      var nodeName = nodeName_(tapElement);
 
       // Use jQuery originalEvent
       var originalEvent = event.originalEvent || event;
@@ -454,7 +462,9 @@ ngTouch.directive('ngClick', ['$parse', '$timeout', '$rootElement',
         // Blur the focused element (the button, probably) before firing the callback.
         // This doesn't work perfectly on Android Chrome, but seems to work elsewhere.
         // I couldn't get anything to work reliably on Android Chrome.
-        if (tapElement) {
+        // Make sure the tapElement isn't of type input to prevent the keyboard from
+        // bouncing and possibly not showing without a few attempted clicks.
+        if (tapElement && nodeName !== 'input' && nodeName !== 'textarea') {
           tapElement.blur();
         }
 
